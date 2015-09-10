@@ -1,10 +1,12 @@
 # benchmarks
-The goal is to create an array holding the max daily temperature and the time it was achieved, for 
+Benchmarks for comparing sqlite, MySQL, and InfluxDB for a common
+task when doing weather data analysis: create an array holding
+the max daily temperature and the time it was achieved, for 
 each day in a year. Should be 366 points of data.
 
 Uses the module `gen_fake_data` from the weewx test suites to create the synthetic data.
 
-So, both the test suites and the weewx API must be in your PATH. The following works for me:
+Both the weewx test suites and the weewx API must be in your PYTHONPATH. The following works for me:
 
 ```
 export PYTHONPATH="/home/tkeffer/git/weewx/bin:/home/tkeffer/git/weewx/bin/weewx/test"
