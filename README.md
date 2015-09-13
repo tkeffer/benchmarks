@@ -1,27 +1,27 @@
 # benchmarks
-Benchmarks for comparing sqlite, MySQL, and InfluxDB for a common
+Benchmarks for comparing sqlite, MySQL, MongoDB, and InfluxDB for a common
 task when doing weather data analysis: create an array holding
 the max daily temperature and the time it was achieved, for 
-each day in a year. Should be 366 points of data.
+each day in a year.
 
-Uses the module `gen_fake_data` from the weewx test suites to create the synthetic data.
+Uses the module `gen_fake_data` from the weewx test suites to create a year's worth of synthetic data,
+with a 5 minute archive interval. This is approximately 105,000 records.
 
-Both the weewx test suites and the weewx API must be in your PYTHONPATH. The following works for me:
+Both the weewx test suites and the weewx API must be in your `PYTHONPATH`. The following works for me:
 
 ```
 export PYTHONPATH="/home/tkeffer/git/weewx/bin:/home/tkeffer/git/weewx/bin/weewx/test"
 ```
 
 ## Results
-Using an Intel NUC, with a full year of synthetic data (using gen_fake_data()) at 5 minute intervals,
-a total of about 105,000 data points.
+Using an Intel NUC.
 
 
 ### SQLITE
 
 Query strategies:
 
-1. Using an explicit query:
+1. Using an explicit SQL query for each day of the year
 
     ```
     SELECT dateTime, outTemp FROM archive WHERE dateTime > %d AND dateTime <= %d AND 
@@ -33,7 +33,8 @@ Query strategies:
 2. Using the weewx `manager.getAggregate()` function. This actually involves two queries: one for the max temperature, 
 the other for the time of the max temperature. 
 
-3. Using the weewx daily `manager.getAggregate()` function.
+3. Using the weewx daily `manager.getAggregate()` function. This takes advantage of the daily summaries
+built by the weewx class `WXDaySummaryManager`.
 
 On `/var/tmp` (a conventional HD):
 
@@ -54,7 +55,7 @@ On `/tmp` (an SSD)
 
 ### MySQL
 
-Same query strategy as sqlite.
+Using the same three query strategies as used above with sqlite.
 
 First run
 
@@ -83,7 +84,6 @@ The collection was indexed on the timestamp `dateTime`.
 
 The query strategy is to do an aggregation for each day of the year (local time).
 
-    ```
     for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
         rs = collection.aggregate([{"$match"   : {"dateTime" : {"$gt" : datetime.datetime.utcfromtimestamp(span[0]), 
                                                                 "$lte" : datetime.datetime.utcfromtimestamp(span[1])}}}, 
@@ -91,20 +91,20 @@ The query strategy is to do an aggregation for each day of the year (local time)
                                    {"$sort" : {"outTemp":-1 } },
                                    {"$limit" : 1}
                                    ])
-    ```
 
 Total run time for the query was approximately 0.3s.
 
 
 ### [InfluxDB](https://influxdb.com/)
 
-I couldn't find a way to get the time of the max temps. Used the query
+The query
 
 ```
 SELECT MAX(outTemp) FROM "wxpacket" WHERE time > %d AND time <=%d
 ```
 
-which took 1.37 seconds. 
+gets the max temperature of each day and took 1.37 seconds. I couldn't find a way to get
+the time of each max in the same query (InfluxDB does not allow a SELECT of a SELECT, like SQL).
 
 Using the `GROUP BY` query:
 
@@ -113,6 +113,4 @@ SELECT MAX(outTemp) FROM "wxpacket" WHERE time > %d AND time <= %d GROUP BY time
 ```
 
 took 0.47 seconds. Unfortunately, it's giving the wrong answer because the days
-are being grouped by UTC time, not local time. It also doesn't return the _time_ of 
-the max temperature.
-
+are being grouped by UTC time, not local time. It doesn't return the time of the max either.
