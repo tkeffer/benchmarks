@@ -73,9 +73,32 @@ Second run (presumably after caches have been filled):
 3. 0.068
 
 
+### [MongoDB](https://www.mongodb.com/)
+
+It's worth noting that inserting the 100,000+ records in the MongoDB database
+was very fast, approximately 25 seconds, even though they were inserted individually.
+Presumably, a bulk insert would be even faster.
+
+The collection was indexed on the timestamp `dateTime`.
+
+The query strategy is to do an aggregation for each day of the year (local time).
+
+    ```
+    for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
+        rs = collection.aggregate([{"$match"   : {"dateTime" : {"$gt" : datetime.datetime.utcfromtimestamp(span[0]), 
+                                                                "$lte" : datetime.datetime.utcfromtimestamp(span[1])}}}, 
+                                   {"$project" : {"dateTime" : 1, "outTemp" : 1}},
+                                   {"$sort" : {"outTemp":-1 } },
+                                   {"$limit" : 1}
+                                   ])
+    ```
+
+Total run time for the query was approximately 0.3s.
+
+
 ### [InfluxDB](https://influxdb.com/)
 
-I couldn't figure out a way to get the time of the max temps. Used the query
+I couldn't find a way to get the time of the max temps. Used the query
 
 ```
 SELECT MAX(outTemp) FROM "wxpacket" WHERE time > %d AND time <=%d
@@ -89,5 +112,7 @@ Using the `GROUP BY` query:
 SELECT MAX(outTemp) FROM "wxpacket" WHERE time > %d AND time <= %d GROUP BY time(1d)
 ```
 
-took 0.47 seconds. Better, but not in the same league as sqlite and MySQL. Unfortunately, it gives the wrong 
-answer around DST boundaries. It also doesn't return the time of max temperature.
+took 0.47 seconds. Unfortunately, it's giving the wrong answer because the days
+are being grouped by UTC time, not local time. It also doesn't return the _time_ of 
+the max temperature.
+

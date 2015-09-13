@@ -85,8 +85,14 @@ def main():
                                  start_ts=start_ts, stop_ts=stop_ts, interval=interval)
 
     time_query(config_dict)
-    time_manager(config_dict)
-    time_daily(config_dict)
+    vec = time_manager(config_dict)
+    with open("manager_sqlite.out", "w") as fd:
+        for x in vec:
+            fd.write("%s %.2f\n" % (weeutil.weeutil.timestamp_to_string(x[0]), x[1]))
+    vec = time_daily(config_dict)
+    with open("daily_sqlite.out", "w") as fd:
+        for x in vec:
+            fd.write("%s %.2f\n" % (weeutil.weeutil.timestamp_to_string(x[0]), x[1]))
     
     # Now do it all again, but with MySQL
     print "***** MySQL *****"
@@ -95,8 +101,14 @@ def main():
                                  start_ts=start_ts, stop_ts=stop_ts, interval=interval)
 
     time_query(config_dict)
-    time_manager(config_dict)
-    time_daily(config_dict)
+    vec = time_manager(config_dict)
+    with open("manager_mysql.out", "w") as fd:
+        for x in vec:
+            fd.write("%s %.2f\n" % (weeutil.weeutil.timestamp_to_string(x[0]), x[1]))
+    vec = time_daily(config_dict)
+    with open("daily_mysql.out", "w") as fd:
+        for x in vec:
+            fd.write("%s %.2f\n" % (weeutil.weeutil.timestamp_to_string(x[0]), x[1]))
 
 def time_query(config_dict):
     """A low-level approach. Use a SQL query"""
@@ -115,8 +127,6 @@ def time_query(config_dict):
     vec = []
     
     for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
-        # This cheats a bit because sqlite has the ability to return an aggregate, along with other values that
-        # aggregate was found. Not all SQL databases do this.
         query = 'SELECT dateTime, outTemp FROM archive WHERE dateTime > %d AND dateTime <= %d '\
                     'AND outTemp = (SELECT MAX(outTemp) FROM archive WHERE dateTime > %d AND dateTime <= %d)' % (span + span)
         tup = manager.getSql(query)
@@ -133,7 +143,8 @@ def time_manager(config_dict):
     manager_dict['manager'] = 'weewx.manager.Manager'
 
     manager = weewx.manager.open_manager(manager_dict,initialize=False)
-    run_manager(manager)
+    vec = run_manager(manager)
+    return vec
 
 def time_daily(config_dict):
     """Use the class weewx.wxmanager.WXDaySummaryManager, which knows how to use the daily
@@ -142,7 +153,8 @@ def time_daily(config_dict):
 
     manager = weewx.manager.open_manager(manager_dict,initialize=False)
 
-    run_manager(manager)
+    vec = run_manager(manager)
+    return vec
 
 def run_manager(manager):    
     print "start time=", timestamp_to_string(start_ts)
@@ -160,7 +172,6 @@ def run_manager(manager):
     t1 = time.time()
     print "Elapsed query time=", t1-t0
         
-    print vec
-    
+    return vec
 
 main()
