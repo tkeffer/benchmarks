@@ -19,6 +19,11 @@ Using an Intel NUC.
 
 ### SQLITE
 
+It took approximately 4 seconds to create the archive database as a single transaction, 
+and another 18.25s to create the daily summaries.
+
+The table was indexed on the timestamp `dateTime`.
+
 Query strategies:
 
 1. Using an explicit SQL query for each day of the year
@@ -55,6 +60,11 @@ On `/tmp` (an SSD)
 
 ### MySQL
 
+It took 15.4s to create the archive database as a single transaction, and another 25.6s to create the daily 
+summaries.
+
+The table was indexed on the timestamp `dateTime`.
+
 Using the same three query strategies as used above with sqlite.
 
 First run
@@ -76,23 +86,30 @@ Second run (presumably after caches have been filled):
 
 ### [MongoDB](https://www.mongodb.com/)
 
-It's worth noting that inserting the 100,000+ records in the MongoDB database
-was very fast, approximately 25 seconds, even though they were inserted individually.
-Presumably, a bulk insert would be even faster.
+It's worth noting that even though the 100,000+ records were inserted individually into the 
+MongoDB database, it only took 25 seconds. While a bulk insert would be presumably faster,
+this was fast enough, so I didn't bother.
 
 The collection was indexed on the timestamp `dateTime`.
 
-The query strategy is to do an aggregation for each day of the year (local time).
+The query strategy is similar to strategy #1 above, used with the SQL databases: do an aggregation
+for each day of the year (local time).
 
     for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
-        rs = collection.aggregate([{"$match"   : {"dateTime" : {"$gt" : datetime.datetime.utcfromtimestamp(span[0]), 
-                                                                "$lte" : datetime.datetime.utcfromtimestamp(span[1])}}}, 
+        rs = collection.aggregate([{"$match"   : {"dateTime" : {"$gt"  : datetime.datetime.utcfromtimestamp(span[0]), 
+                                                                "$lte" : datetime.datetime.utcfromtimestamp(span[1])},
+                                                  "outTemp"  : {"$ne" : None}}}, 
                                    {"$project" : {"dateTime" : 1, "outTemp" : 1}},
                                    {"$sort" : {"outTemp":-1 } },
                                    {"$limit" : 1}
                                    ])
 
-Total run time for the query was approximately 0.3s.
+The match for non-null values of `outTemp` is not really necessary when you are looking
+for the largest value of something, but it is when you are looking for the smallest, because [null sorts
+before numbers](http://docs.mongodb.org/master/faq/developers/#what-is-the-compare-order-for-bson-types)
+in MongoDB.
+
+Total run time for the query was approximately 0.35s.
 
 
 ### [InfluxDB](https://influxdb.com/)

@@ -83,10 +83,12 @@ def time_query(collection):
     vec = []
     t0 = time.time()
     for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
-        rs = collection.aggregate([{"$match"   : {"dateTime" : {"$gt" : datetime.datetime.utcfromtimestamp(span[0]), 
-                                                                "$lte" : datetime.datetime.utcfromtimestamp(span[1])}}}, 
+        rs = collection.aggregate([{"$match"   : {"dateTime" : {"$gt"  : datetime.datetime.utcfromtimestamp(span[0]), 
+                                                                "$lte" : datetime.datetime.utcfromtimestamp(span[1])},
+                                                  "outTemp"  : {"$ne" : None}
+                                                  }}, 
                                    {"$project" : {"dateTime" : 1, "outTemp" : 1}},
-                                   {"$sort" : {"outTemp":-1 } },
+                                   {"$sort" : {"outTemp" : -1 } },
                                    {"$limit" : 1}
                                    ])
         for x in rs:
