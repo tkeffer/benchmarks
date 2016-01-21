@@ -41,7 +41,7 @@ the other for the time of the max temperature.
 3. Using the weewx daily `manager.getAggregate()` function. This takes advantage of the daily summaries
 built by the weewx class `WXDaySummaryManager`.
 
-On `/var/tmp` (a conventional HD):
+On `/var/tmp`, a conventional hard drive:
 
 1. 0.106
 
@@ -49,7 +49,7 @@ On `/var/tmp` (a conventional HD):
 
 3. 0.055
 
-On `/tmp` (an SSD)
+On `/tmp`, a solid-state disk:
 
 1. 0.075
 
@@ -60,7 +60,9 @@ On `/tmp` (an SSD)
 
 ### MySQL
 
-It took 15.4s to create the archive database as a single transaction, and another 25.6s to create the daily 
+The MySQL database was on `/var/lib`, a conventional hard drive.
+
+It took 15.4s to create the archive database as a single transaction, and another 25.6s to create the daily
 summaries.
 
 The table was indexed on the timestamp `dateTime`.
@@ -132,14 +134,14 @@ SELECT MAX(outTemp) FROM "wxpacket" WHERE time > %d AND time <= %d GROUP BY time
 took 0.47 seconds. Unfortunately, it's giving the wrong answer because the days
 are being grouped by UTC time, not local time. It doesn't return the time of the max either.
 
-### MySQL using a Sixth Normal Form schema
+## Additional tests using a Sixth Normal Form schema
 
-Later, I did one additional test where the table was in Sixth Normal Form (6NF). In 6NF, each row consists of just
+Later, I did some additional test using a Sixth Normal Form (6NF) schema. In 6NF, each row consists of just
 a key and one value. In this context, this means each row can hold only a single measurement value.
 
 The table looked like this
 
-| datetime   | obstype     | measurement |
+| dateTime   | obstype     | measurement |
 |------------|-------------|-------------|
 | 1262332800 | `outTemp`   | 20.5        |
 | 1262332800 | `windSpeed` | 12.5        |
@@ -151,18 +153,36 @@ The table looked like this
 
 The primary key is the combination (`obstype`, `dateTime`).
 
-This was the slowest to create, about 98 seconds.
-
 The query looked like this:
 
 ```Python
     vec = []
     for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
-        query = "SELECT dateTime, measurement FROM bench WHERE obstype = 'outTEMP' AND dateTime > %s AND dateTime <= %s AND " \
-                    "measurement = (SELECT MAX(measurement) FROM bench WHERE obstype = 'outTemp' AND dateTime > %s AND dateTime <= %s)"
+        query = "SELECT dateTime, measurement FROM bench WHERE obstype = 'outTemp' AND dateTime > ? AND dateTime <= ? AND " \
+                    "measurement = (SELECT MAX(measurement) FROM bench WHERE obstype = 'outTemp' AND dateTime > ? AND dateTime <= ?)"
         cursor.execute(query, span + span)
-        vec.append(cursor.fetchone())
+        vec.append(tuple(cursor.fetchone()))
 ```
+### SQLITE using 6NF
 
-While creating the table was slow, the query was by far the fastest to execute, approximately 0.021s to build the
-vector.
+Using `/var/tmp`, mounted on a conventional hard drive.
+
+|Test | time |
+|----|----|
+|Generate data in a single transaction | 5.2s|
+|Generate data in transaction batches of 32,000 records | 8.3s|
+|Run the query, first run | 0.48s|
+|Run the query, subsequent runs | 0.48s|
+
+
+### MySQL using 6NF
+
+|Test | time |
+|----|----|
+|Generate data in a single transaction | 80s|
+|Generate data in transaction batches of 32,000 records | 78s|
+|Run the query, first run | 0.47s|
+|Run the query, subsequent runs | 0.021s|
+
+Clearly, filling the caches makes a big difference for MySQL
+
