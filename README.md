@@ -2,7 +2,7 @@
 Benchmarks for comparing sqlite, MySQL, MongoDB, and InfluxDB for a common
 task when doing weather data analysis: create an array holding
 the max daily temperature and the time it was achieved, for 
-each day in a year.
+each day of a year.
 
 Uses the module `gen_fake_data` from the weewx test suites to create a year's worth of synthetic data,
 with a 5 minute archive interval. This is approximately 105,000 records.
@@ -131,3 +131,38 @@ SELECT MAX(outTemp) FROM "wxpacket" WHERE time > %d AND time <= %d GROUP BY time
 
 took 0.47 seconds. Unfortunately, it's giving the wrong answer because the days
 are being grouped by UTC time, not local time. It doesn't return the time of the max either.
+
+### MySQL using a Sixth Normal Form schema
+
+Later, I did one additional test where the table was in Sixth Normal Form (6NF). In 6NF, each row consists of just
+a key and one value. In this context, this means each row can hold only a single measurement value.
+
+The table looked like this
+
+| datetime   | obstype     | measurement |
+|------------|-------------|-------------|
+| 1262332800 | `outTemp`   | 20.5        |
+| 1262332800 | `windSpeed` | 12.5        |
+| 1262332800 | `windDir`   | 230.0       |
+| 1262484000 | `outTemp`   | 20.6        |
+| 1262484000 | `windSpeed` | 9.5         |
+| 1262484000 | `windDir`   | 235.0       |
+| ...        | ...         | ...         |
+
+The primary key is the combination (`obstype`, `dateTime`).
+
+This was the slowest to create, about 98 seconds.
+
+The query looked like this:
+
+```Python
+    vec = []
+    for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
+        query = "SELECT dateTime, measurement FROM bench WHERE obstype = 'outTEMP' AND dateTime > %s AND dateTime <= %s AND " \
+                    "measurement = (SELECT MAX(measurement) FROM bench WHERE obstype = 'outTemp' AND dateTime > %s AND dateTime <= %s)"
+        cursor.execute(query, span + span)
+        vec.append(cursor.fetchone())
+```
+
+While creating the table was slow, the query was by far the fastest to execute, approximately 0.021s to build the
+vector.
