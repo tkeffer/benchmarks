@@ -30,15 +30,21 @@ def main():
 
     print "start time=", timestamp_to_string(start_ts)
     print "stop time= ",  timestamp_to_string(stop_ts)
-    print "(Approximately %.1f months of data)" % ((stop_ts - start_ts)/(30*24*3600))
+    print "(Approximately %.1f days of data)" % ((stop_ts - start_ts)/(24*3600.0))
      
     print "***** SQLITE *****"
     create_table(sqlite_db_dict)
-    time_query(sqlite_db_dict)
+    connect = weedb.connect(sqlite_db_dict)
+    time_query(connect, 'outTemp')
+    time_query(connect, 'barometer')
+    connect.close()
     
     print "***** MySQL *****"
     create_table(mysql_db_dict)
-    time_query(mysql_db_dict)
+    connect = weedb.connect(mysql_db_dict)
+    time_query(connect, 'outTemp')
+    time_query(connect, 'barometer')
+    connect.close()
 
 def create_table(db_dict):
     """Create and populate the database table using a 6NF schema"""
@@ -109,26 +115,23 @@ def gen_data(connect):
     t1 = time.time()
     print "\n%d records generated in %.1f seconds" % (N, t1-t0)
  
-def time_query(db_dict):
+def time_query(connect, obs_type):
     """Time how long it takes to create a vector with daily max temperatures."""
      
-    connect = weedb.connect(db_dict)
-
     t0 = time.time()
     cursor = connect.cursor()
     vec = []
      
     for span in weeutil.weeutil.genDaySpans(start_ts, stop_ts):
-        query = "SELECT dateTime, measurement FROM bench WHERE obstype = 'outTemp' AND dateTime > ? AND dateTime <= ? AND " \
-                    "measurement = (SELECT MAX(measurement) FROM bench WHERE obstype = 'outTemp' AND dateTime > ? AND dateTime <= ?)"
+        query = "SELECT dateTime, measurement FROM bench WHERE obstype = '%s' AND dateTime > ? AND dateTime <= ? AND " \
+                    "measurement = (SELECT MAX(measurement) FROM bench " \
+                    "WHERE obstype = '%s' AND dateTime > ? AND dateTime <= ?)" % (obs_type, obs_type)
         cursor.execute(query, span + span)
         result_set = cursor.fetchone()
         vec.append(tuple(result_set))
  
     t1 = time.time()
-    connect.close()
-    print "Elapsed query time=", t1-t0
-         
-    print vec
-    
+    cursor.close()
+    print "For observation type %s, elapsed query time = %.03f" % (obs_type, t1-t0)
+
 main()
