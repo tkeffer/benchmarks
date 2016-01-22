@@ -14,7 +14,7 @@ export PYTHONPATH="/home/tkeffer/git/weewx/bin:/home/tkeffer/git/weewx/bin/weewx
 ```
 
 ## Results
-Using an Intel NUC.
+Using an Intel NUC with Intel® Core™ i5-4250U CPU @ 1.30GHz × 4, and 16 GB of memory.
 
 
 ### SQLITE
@@ -163,26 +163,37 @@ The query looked like this:
         cursor.execute(query, span + span)
         vec.append(tuple(cursor.fetchone()))
 ```
-### SQLITE using 6NF
+#### SQLITE using 6NF
 
 Using `/var/tmp`, mounted on a conventional hard drive.
 
-|Test | time |
-|----|----|
-|Generate data in a single transaction | 5.2s|
-|Generate data in transaction batches of 32,000 records | 8.3s|
-|Run the query, first run | 0.48s|
-|Run the query, subsequent runs | 0.48s|
+| Test                                                   | time  |
+|--------------------------------------------------------|-------|
+| Generate data in a single transaction                  | 5.2s  |
+| Generate data in transaction batches of 32,000 records | 8.3s  |
+| Run the query, first run                               | 0.48s |
+| Run the query, subsequent runs                         | 0.48s |
 
 
-### MySQL using 6NF
+#### MySQL using 6NF
 
-|Test | time |
-|----|----|
-|Generate data in a single transaction | 80s|
-|Generate data in transaction batches of 32,000 records | 78s|
-|Run the query, first run | 0.47s|
-|Run the query, subsequent runs | 0.021s|
+Run on a conventional hard drive.
+
+| Test                                                   | time   |
+|--------------------------------------------------------|--------|
+| Generate data in a single transaction                  | 80s    |
+| Generate data in transaction batches of 32,000 records | 78s    |
+| Run the query, first run                               | 0.47s  |
+| Run the query, subsequent runs                         | 0.021s |
 
 Clearly, filling the caches makes a big difference for MySQL
 
+#### Conclusion
+
+Because the observation type is specified as a key, and not
+a schema attribute, 6NF has the advantage of flexibility. New types can be added easily.
+
+Unfortunately, queries seem to take about 3 times as long as the standard schema.
+
+It's worth noting that MongoDB also allows any mix of types, but takes about twice as long as MySQL using the
+standard schema.
